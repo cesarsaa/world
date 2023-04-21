@@ -1,0 +1,12 @@
+Indices por hacer:
+1.#----#
+NDD
+P5D
+P95
+NTX_35, Pendiente de fijar umbral por ahora 35
+2.#----#
+HSH
+THI 
+3.#----#
+NDWS
+NDWL50

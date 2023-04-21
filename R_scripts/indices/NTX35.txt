@@ -1,0 +1,56 @@
+## Heat stress generic crop (NTx35)
+## By: H. Achicanoy
+## December, 2022
+
+# R options
+g <- gc(reset = T); rm(list = ls()) # Empty garbage collector
+options(warn = -1, scipen = 999)    # Remove warning alerts and scientific notation
+suppressMessages(library(pacman))
+suppressMessages(pacman::p_load(tidyverse,terra,gtools,lubridate))
+
+root <- '/home/jovyan/common_data'
+root <- '//CATALOGUE/WFP_ClimateRiskPr1'
+ref <- terra::rast(paste0("//CATALOGUE/WFP_ClimateRiskPr1/1.Data/Chirps/chirps-v2.0.1981.01.01.tif"))
+
+# Calculate NTx function
+calc_ntx <- function(yr, mn, thr=35){ #thr=35
+  outfile <- paste0(out_dir,'/NTx',thr,'/','_NTx',thr,'-',yr,'-',mn,'.tif')
+  if(!file.exists(outfile)){
+    dir.create(dirname(outfile),F,T)
+    # Last day of the month
+    last_day <- lubridate::days_in_month(as.Date(paste0(yr,'-',mn,'-01')))
+    # Sequence of dates
+    dts <- seq(from = as.Date(paste0(yr,'-',mn,'-01')), to = as.Date(paste0(yr,'-',mn,'-',last_day)), by = 'day')
+    # Files
+    fls <- paste0(tx_pth,'/Temperature-Air-2m-Max-24h_C3S-glob-agric_AgERA5_',gsub(pattern='-', replacement='', x=dts, fixed=T),'_final-v1.0','.nc')
+    fls <- fls[file.exists(fls)]
+    # Read maximum temperature data
+    tmx <- terra::rast(fls)
+    tmx <- tmx - 273.15
+    ref <- terra::resample(ref, tmx[[1]])
+    tmx <- tmx %>% terra::crop(terra::ext(ref)) %>% terra::mask(ref)
+    # Calculate heat stress generic crop
+    terra::app(x   = tmx,
+               fun = function(x){ ntxval = sum(x >= thr, na.rm = T); return(ntxval) },
+               filename = outfile)
+    # Clean up
+    rm(tmx)
+    gc(verbose=FALSE, full=TRUE, reset=TRUE)
+  }
+}
+
+# Historical setup
+yrs <- 1981:1982
+mns <- c(paste0('0',1:9),10:12)
+stp <- base::expand.grid(yrs, mns) %>% base::as.data.frame(); rm(yrs,mns)
+names(stp) <- c('yrs','mns')
+stp <- stp %>%
+  dplyr::arrange(yrs, mns) %>%
+  base::as.data.frame()
+tx_pth <- paste0(root,'/1.Data/ERA5/2m_temperature-24_hour_maximum') # Daily maximum temperature
+out_dir <- paste0(root,'/7.Results/World/')
+
+1:nrow(stp) %>%
+  purrr::map(.f = function(i){calc_ntx(yr = stp$yrs[i], mn = stp$mns[i])})
+
+
